@@ -2,9 +2,12 @@
 
 ## Installation
 
-1. Install wassup:  
-   ```gem install wassup```
-2. Set environment variables:
+1. Clone this repo
+1. Install `wassup`:  
+   ```
+   gem install wassup
+   ```
+1. Set environment variables:
    * `WASSUP_CIRCLE_ORG_SLUG` - e.g. `gh/fastlane`
    * `WASSUP_CIRCLE_TOKEN` - personal token obtained from CircleCI
 
