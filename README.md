@@ -7,3 +7,12 @@
 2. Set environment variables:
    * `WASSUP_CIRCLE_ORG_SLUG` - e.g. `gh/fastlane`
    * `WASSUP_CIRCLE_TOKEN` - personal token obtained from CircleCI
+
+## Usage 
+
+Poll several repos at once:
+
+```
+wassup Supfile <repo_name> [<repo_name>...] 
+```
+
