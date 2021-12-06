@@ -1,0 +1,103 @@
+# frozen_string_literal: true
+
+require 'time'
+require 'rest-client'
+require 'json'
+require 'colorize'
+
+require 'curses'
+
+# rubocop:disable Lint/MissingCopEnableDirective
+# rubocop:disable Metrics/BlockLength
+# rubocop:disable Style/FormatString
+# rubocop:disable Style/MultilineBlockChain
+
+repos = ARGV[1..-1]
+
+npanes = repos.length
+pane_size = 1 / npanes.to_f
+repos.each_with_index do |repo, index|
+  add_pane do |pane|
+    pane.height = pane_size
+    pane.width = 1
+    pane.top = index * pane_size
+    pane.left = 0
+
+    pane.highlight = true
+
+    pane.title = repo
+
+    pane.interval = 60
+    pane.content do
+      resp = RestClient::Request.execute(
+        method: :get,
+        url: "https://circleci.com/api/v2/project/#{ENV['WASSUP_CIRCLE_ORG_SLUG']}/#{repo.downcase}/pipeline",
+        headers: { "Circle-Token": ENV['WASSUP_CIRCLE_TOKEN'] }
+      )
+      json = JSON.parse(resp)
+      json['items'].select do |item|
+        date = Time.parse(item['updated_at'])
+        days = (Time.now - date).to_i / (24 * 60 * 60)
+        days < 14
+      end.map do |item|
+        id = item['id']
+        number = item['number']
+        number = '%5.5s' % number
+        created_at = Time.parse(item['created_at'])
+
+        unless (message = item.dig('vcs', 'commit', 'subject'))
+          message = if (tag = item.dig('vcs', 'tag'))
+                      "🏷  #{tag}"
+                    else
+                      ''
+                    end
+        end
+
+        branch = item.dig('vcs', 'branch') || ''
+        branch = '%-40.40s' % branch
+        login = item['trigger']['actor']['login']
+        login = '%-15.15s' % login
+
+        resp = RestClient::Request.execute(
+          method: :get,
+          url: "https://circleci.com/api/v2/pipeline/#{id}/workflow",
+          headers: { "Circle-Token": ENV['WASSUP_CIRCLE_TOKEN'] }
+        )
+        json = JSON.parse(resp)
+        workflow = json['items'].first || {}
+        status = workflow['status'] || ''
+
+        color = case status
+                when 'failed'
+                  'red'
+                when 'success'
+                  'green'
+                when 'running'
+                  'blue'
+                else
+                  'yellow'
+                end
+        status = "[fg=#{color}]%-8.8s[fg=white]" % status
+
+        ["#{number} #{created_at} #{status} [fg=blue]#{branch}[fg=white] #{login} #{message}", [item, workflow]]
+      rescue StandardError => e
+        ["#{item} #{e}"]
+      end
+    end
+    pane.selection do |data|
+      workflow = data[1]
+
+      slug = workflow['project_slug']
+      pipeline_number = workflow['pipeline_number']
+      workflow_id = workflow['id']
+
+      url = "https://app.circleci.com/pipelines/#{slug}/#{pipeline_number}/workflows/#{workflow_id}"
+      `open #{url}`
+    end
+    pane.selection('o') do |data|
+      pipeline = data[0]
+      url = pipeline['vcs']['review_url']
+      `open #{url}` unless url.nil?
+    end
+  end
+end
